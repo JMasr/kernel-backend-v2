@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.uv/
+dist/
+
+# Environment
+.env
+*.key
+secrets/
+
+# Database
+*.db
+*.sqlite3
+
+# Test artifacts
+.pytest_cache/
+.hypothesis/
+htmlcov/
+.coverage
+coverage.xml
+
+# Media (real fixture files are gitignored — use manifest.yaml to document them)
+data/media/
+data/fixtures/*.mp4
+data/fixtures/*.aac
+data/fixtures/*.mov
+# Synthetic test media (generated locally)
+tests/fixtures/*.mp4
+tests/fixtures/*.aac
+
+# Misc
+.DS_Store
+.idea/
+.vscode/
+*.log
