@@ -28,6 +28,25 @@ async def process_sign_job(ctx: dict, content_id: str, input_path: str):
 ARQ requeues jobs if a worker dies mid-execution. The sign job must be safe
 to run twice for the same `content_id` (check if already processed before writing to DB).
 
+**Two-phase signing architecture (Phase 7.2):**
+
+`_sign_sync()` (subprocess) calls `_sign_*_cpu()` and returns a `RawSigningPayload` dict —
+no async I/O, no `_NullRegistry`. `process_sign_job` (parent async loop) calls
+`_persist_payload(payload, storage, registry)` after `run_in_executor` returns:
+
+```python
+# jobs.py — correct CPU/IO split
+def _sign_sync(media_path, cert_data, private_key_pem, pepper, org_id) -> dict:
+    # Routes to _sign_audio_cpu / _sign_video_cpu / _sign_av_cpu based on media type
+    # Returns RawSigningPayload — no storage, no DB, no asyncio.run()
+    ...
+
+async def process_sign_job(ctx, ...):
+    payload = await loop.run_in_executor(process_pool, _sign_sync, ...)
+    # I/O phase with real adapters from ctx
+    await _persist_payload(payload, ctx["storage"], ctx["registry"])
+```
+
 **Status polling — Redis key takes precedence over ARQ (Phase 7.1):**
 
 `process_sign_job` writes a Redis key `job:{job_id}:status` (TTL 3600 s) at each
@@ -40,9 +59,9 @@ async def _set_job_status(redis, job_id: str, status: dict) -> None:
 
 # In process_sign_job:
 await _set_job_status(redis, job_id, {"status": "processing", "progress": 0})
-# ... CPU work ...
+# ... CPU work in subprocess ...
 await _set_job_status(redis, job_id, {"status": "processing", "progress": 20})
-# ... sign ...
+# ... I/O phase in parent loop ...
 await _set_job_status(redis, job_id, {"status": "completed", "progress": 100, "result": ...})
 ```
 
